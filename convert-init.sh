@@ -266,6 +266,26 @@ enable_services() {
     ) | dialog --title "Enabling Services" --gauge "Activating system services..." 8 60 0
 }
 
+safe_reboot() {
+    show_msg "System will now reboot to complete the conversion.\nPress OK to continue."
+    
+    (
+        echo "25"; show_progress "Syncing filesystems..."
+        sync
+        
+        echo "50"; show_progress "Unmounting all filesystems..."
+        umount -a || true  # Continue even if some filesystems are busy
+        
+        echo "75"; show_progress "Remounting root filesystem read-only..."
+        mount -f / -o remount,ro
+        
+        echo "100"; show_progress "Triggering system reboot..."
+        echo s >| /proc/sysrq-trigger  # Sync
+        echo u >| /proc/sysrq-trigger  # Unmount
+        echo b >| /proc/sysrq-trigger  # Reboot
+    ) | dialog --title "System Reboot" --gauge "Preparing for system reboot..." 8 60 0
+}
+
 convert_system() {
     # Select init system first
     local init_system
@@ -300,7 +320,10 @@ convert_system() {
         exit 1
     }
 
-    show_msg "System successfully converted to Artix Linux with ${init_system}!\nPlease reboot your system to complete the conversion."
+    show_msg "System successfully converted to Artix Linux with ${init_system}!"
+    
+    # Reboot the system
+    safe_reboot
 }
 
 # Call the main function if script is executed directly
